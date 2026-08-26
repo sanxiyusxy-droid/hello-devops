@@ -1,0 +1,22 @@
+{
+  "name": "hello-devops",
+  "version": "1.0.0",
+  "private": true,
+  "description": "最小可验证项目：走通 开发 -> 提交 -> 测试 -> 构建 -> 部署 全流程",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^5.0.0"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0",
+    "supertest": "^7.0.0"
+  }
+}

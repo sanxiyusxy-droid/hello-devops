@@ -1,0 +1,11 @@
+# 这些东西不需要进构建上下文，能显著加快 docker build 并避免污染镜像
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.github
+tests
+coverage
+*.md
+.DS_Store
+.env
