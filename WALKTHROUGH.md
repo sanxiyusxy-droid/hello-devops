@@ -423,7 +423,7 @@ docker build -t hello-devops:local .
 docker images | grep hello-devops
 ```
 
-约 150MB 左右，其中绝大部分是 Node 运行时本身。alpine 基础镜像 + 两阶段构建（不带 devDependencies）省下了几百 MB。
+大约 235MB 磁盘占用 / 59MB 镜像内容，其中大部分是 Node 运行时本身。alpine 基础镜像 + 两阶段构建（不带 devDependencies）省下了几百 MB。
 
 👉 后台运行容器：
 
@@ -441,20 +441,22 @@ docker run -d --name hello -p 3000:3000 hello-devops:local
 curl http://localhost:3000/health
 ```
 
-👉 常用排查命令，逐个试一遍：
+👉 常用排查命令，逐个试一遍（看运行中容器 / 看日志 / 进容器开 shell）：
 
 ```bash
-docker ps                    # 看运行中的容器，注意 STATUS 里的 (healthy)
-docker logs hello            # 看容器标准输出，排错第一步永远是看日志
-docker exec -it hello sh     # 进容器内部开个 shell
+docker ps
+docker logs hello
+docker exec -it hello sh
 ```
 
-进去之后可以看看：
+> 注意命令行尾不要带 `#` 注释。zsh 默认没开 `interactive_comments`，行尾的 `#` 不会被当注释，而是当成 glob 限定符，整行报错（`unknown file attribute`）。
+
+进去之后可以看看（预期：只有 node_modules/package.json/src、用户是 node 不是 root、APP_VERSION=dev）：
 
 ```sh
-ls              # 只有 node_modules、package.json、src —— tests 和 .git 都没进来（.dockerignore）
-whoami          # node，不是 root
-env | grep APP  # APP_VERSION=dev
+ls
+whoami
+env | grep APP
 exit
 ```
 
@@ -469,11 +471,71 @@ curl http://localhost:3001/health
 
 > **你应该看到**：`{"status":"ok","version":"9.9.9-test"}`。同一个镜像，不同环境变量，不同行为 —— 这就是"一次构建，多环境部署"的基础。
 
+### 6.4 架构陷阱：CI 构建的镜像在 Mac 上拉不下来
+
+现在把 CI 构建的镜像拉下来，和你本地刚构建的对比：
+
+```bash
+docker pull ghcr.io/<你的用户名>/hello-devops:main
+```
+
+> **你很可能看到报错**：
+> ```
+> no matching manifest for linux/arm64/v8 in the manifest list entries
+> ```
+
+原因：GitHub 的 runner 是 **x86 机器**，构建出来的镜像只有 `linux/amd64`；而 Apple Silicon Mac 是 `arm64`。
+
+把镜像清单摊开看看：
+
+```bash
+docker buildx imagetools inspect ghcr.io/<你的用户名>/hello-devops:main
+```
+
+会看到类似：
+
+```
+Manifests:
+  Platform: linux/amd64          ← 只有这一个真实平台
+  Platform: unknown/unknown     ← 构建来源证明，不是可运行镜像
+```
+
+> **关键心智模型**：一个镜像 tag 背后是一份 **manifest list（平台清单）**，像个索引 —— 列出"我为哪些架构准备了对应的镜像"。`docker pull` 时 daemon 拿本机架构去这张表里查，查不到就报错。
+>
+> 镜像不是"一份代码"，而是**为特定 CPU 架构编译好的完整文件系统**。amd64 的二进制在 arm64 上不能原生执行。
+
+**逃生舱**（能救急，不是解法）：用 `--platform` 显式指定，让 Docker 走模拟层：
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/<你的用户名>/hello-devops:main
+```
+
+生产环境跑在模拟层上是不可接受的 —— 慢，而且依赖原生扩展的场景会直接崩。真正的解法是让 CI 同时构建两种架构（见阶段 6.5）。
+
+### 6.5 修复：多架构构建
+
+在 `ci.yml` 里加两个东西：
+
+```yaml
+      # 跨架构构建靠 QEMU：runner 是 x86 机器，靠它模拟出 arm64 环境
+      - name: 准备 QEMU
+        uses: docker/setup-qemu-action@v4
+```
+
+```yaml
+      - name: 构建并推送
+        uses: docker/build-push-action@v7
+        with:
+          platforms: linux/amd64,linux/arm64
+```
+
+之后 manifest list 里就会有两项，Mac 和 x86 服务器都能直接 `docker pull`，各自拿到原生镜像。代价是构建时间变长（arm64 那份要在 QEMU 模拟下跑 `npm ci`）。
+
 👉 清理：
 
 ```bash
-docker rm -f hello hello-test
-docker ps -a          # 确认没有残留容器
+docker rm -f hello hello-test from-ci
+docker ps -a
 ```
 
 ---

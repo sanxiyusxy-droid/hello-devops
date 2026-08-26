@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 准备 Node 环境
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -42,13 +42,17 @@ jobs:
       packages: write    # 推 GHCR 必须的权限
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      # 跨架构构建靠 QEMU：runner 是 x86 机器，靠它模拟出 arm64 环境
+      - name: 准备 QEMU
+        uses: docker/setup-qemu-action@v4
 
       - name: 准备 Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: 登录 GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -57,7 +61,7 @@ jobs:
       # 根据分支/标签自动算出镜像 tag，例如 :main、:1.0.0、:sha-abc1234
       - name: 计算镜像标签
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -66,10 +70,12 @@ jobs:
             type=sha,format=short
 
       - name: 构建并推送
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
+          # 同时构建两种架构，manifest list 里就会有两项，Mac 和 x86 服务器都能直接拉
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
