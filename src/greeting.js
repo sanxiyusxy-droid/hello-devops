@@ -9,7 +9,7 @@ const DEFAULT_NAME = 'World';
 function buildGreeting(name) {
   const trimmed = typeof name === 'string' ? name.trim() : '';
   const target = trimmed === '' ? DEFAULT_NAME : trimmed;
-  return `Hello, ${target}!`;
+  return `Hello, ${target.toUpperCase()}!`;
 }
 
 module.exports = { buildGreeting, DEFAULT_NAME };

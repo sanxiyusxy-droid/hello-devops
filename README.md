@@ -9,7 +9,7 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/health` | 健康检查，返回 `{"status":"ok","version":"..."}` |
-| GET | `/api/greet?name=Xxx` | 返回 `{"message":"Hello, Xxx!"}`，不传 name 则用 `World` |
+| GET | `/api/greet?name=Xxx` | 返回 `{"message":"Hello, XXX!"}`（名字转大写），不传 name 则用 `World` |
 
 ## 本地开发
 
